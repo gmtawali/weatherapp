@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
 import {
   Sun,
@@ -76,12 +76,15 @@ export default function Home() {
 
   // Theme handling
   useEffect(() => {
-    if (theme === "dark") {
-      document.documentElement.classList.add("dark")
-    } else {
-      document.documentElement.classList.remove("dark")
-    }
-  }, [theme])
+    const savedTheme = localStorage.getItem("weatherTheme") || "light";
+    setTheme(savedTheme);
+    document.documentElement.classList.toggle("dark", savedTheme === "dark");
+  }, []);
+  
+  useEffect(() => {
+    localStorage.setItem("weatherTheme", theme);
+    document.documentElement.classList.toggle("dark", theme === "dark");
+  }, [theme]);
 
   // Load saved preferences from localStorage
   useEffect(() => {
@@ -128,6 +131,20 @@ export default function Home() {
     return <div className={`${baseStyles} ${variantStyles[variant]} ${className}`}>{children}</div>
   }
 
+  const WeatherDetails: React.FC<{
+    isOpen: boolean;
+    onToggle: () => void;
+    children: React.ReactNode;
+  }> = ({ isOpen, onToggle, children }) => (
+    <div className="mt-4">
+      <button onClick={onToggle} className="text-blue-500 hover:underline">
+        {isOpen ? "Hide" : "Show"} detailed weather information
+      </button>
+      {isOpen && children}
+    </div>
+  );
+
+
   const AlertDescription: React.FC<{
     children: React.ReactNode
     className?: string
@@ -135,46 +152,64 @@ export default function Home() {
     return <div className={`text-sm flex-1 ${className}`}>{children}</div>
   }
 
+  
   const fetchWeather = async (searchLocation: string) => {
     if (!API_KEY) {
-      setError("Weather data is temporarily unavailable. Please check back later.")
-      return
+      console.error('API key missing');
+      setError("Weather data is temporarily unavailable. API key required.");
+      return;
     }
-
-    setLoading(true)
-    setError(null)
-
+  
+    setLoading(true);
+    setError(null);
+  
     try {
-      const weatherResponse = await fetch(`${API_BASE}/weather?q=${searchLocation}&units=${units}&appid=${API_KEY}`)
-
+      const weatherUrl = `${API_BASE}/weather?q=${searchLocation}&units=${units}&appid=${API_KEY}`;
+      console.log('Fetching weather:', weatherUrl);
+      
+      const weatherResponse = await fetch(weatherUrl);
+      const weatherData = await weatherResponse.json();
+      
+      console.log('Weather Response:', weatherData);
+      
       if (!weatherResponse.ok) {
-        throw new Error("Location not found. Please check the spelling and try again.")
+        throw new Error(weatherData.message || "Location not found");
       }
 
-      const weatherData: WeatherData = await weatherResponse.json()
-
-      const forecastResponse = await fetch(`${API_BASE}/forecast?q=${searchLocation}&units=${units}&appid=${API_KEY}`)
-
+      setWeather(weatherData);
+      
+      // Fetch forecast
+      const forecastUrl = `${API_BASE}/forecast?q=${searchLocation}&units=${units}&appid=${API_KEY}`;
+      const forecastResponse = await fetch(forecastUrl);
+      const forecastData = await forecastResponse.json();
+      
       if (!forecastResponse.ok) {
-        throw new Error("Forecast data unavailable")
+        throw new Error("Forecast unavailable");
       }
 
-      const forecastData = await forecastResponse.json()
-
-      setWeather(weatherData)
-      setForecast(forecastData.list)
-
+      setForecast(forecastData.list);
+      
       // Update recent locations
-      if (!recentLocations.includes(searchLocation)) {
-        const updatedLocations = [searchLocation, ...recentLocations].slice(0, 5)
-        setRecentLocations(updatedLocations)
-      }
+      setRecentLocations(prev => 
+        [searchLocation, ...prev.filter(loc => loc !== searchLocation)].slice(0, 5)
+      );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An unknown error occurred")
+      console.error('Fetch Error:', err);
+      setError(err instanceof Error ? err.message : "An unknown error occurred");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
+
+  const memoizedFetchWeather = useCallback(fetchWeather, [units, API_KEY]);
+
+// Then update the useEffect
+  useEffect(() => {
+    if (weather?.name) {
+      memoizedFetchWeather(weather.name);
+    }
+  }, [weather?.name, memoizedFetchWeather]);
+
 
   const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -215,12 +250,13 @@ export default function Home() {
   const renderForecastChart = () => {
     if (!forecast.length) return null
 
-    const chartData: ChartData[] = forecast
-      .filter((_, index) => index % 8 === 0)
-      .map((item) => ({
-        date: new Date(item.dt * 1000).toLocaleDateString(),
-        temp: item.main.temp,
-      }))
+    try {
+      const chartData = forecast
+        .filter((_, index) => index % 8 === 0)
+        .map((item) => ({
+          date: new Date(item.dt * 1000).toLocaleDateString(),
+          temp: item.main.temp,
+        }));
 
     return (
       <div className="h-64 mt-6">
@@ -243,6 +279,11 @@ export default function Home() {
       </div>
     )
   }
+  catch (err) {
+    console.error('Error rendering forecast:', err);
+    return null;
+  }
+}
 
   const dismissFeatureInfo = () => {
     setShowFeatureInfo(false)
@@ -396,13 +437,7 @@ export default function Home() {
               </div>
 
               {/* Detailed info in collapsible section */}
-              <details className="mt-4" open={showDetails}>
-                <summary
-                  onClick={() => setShowDetails(!showDetails)}
-                  className="cursor-pointer text-blue-500 hover:underline"
-                >
-                  {showDetails ? "Hide" : "Show"} detailed weather information
-                </summary>
+              <WeatherDetails isOpen={showDetails} onToggle={() => setShowDetails(!showDetails)}>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
                   <div className="flex items-center gap-2">
                     <Thermometer className="w-5 h-5 text-gray-400" />
@@ -440,8 +475,6 @@ export default function Home() {
                     </div>
                   </div>
                 </div>
-              </details>
-
               {/* Additional weather conditions if available */}
               {weather.rain && (
                 <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
@@ -460,7 +493,9 @@ export default function Home() {
                   </div>
                 </div>
               )}
-            </div>
+          </WeatherDetails>
+        </div>
+    
 
             {/* Forecast chart with heading */}
             <div className="mt-8">

@@ -1,188 +1,226 @@
-'use client';
+"use client"
 
-import React, { useState, useEffect } from 'react';
-import { 
-  LineChart, Line, XAxis, YAxis, CartesianGrid, 
-  Tooltip, Legend, ResponsiveContainer 
-} from 'recharts';
-import { 
-  Sun, Moon, Cloud, CloudRain, Wind, 
-  Thermometer, Droplets, Search, MapPin,
-  AlertTriangle, Info, Undo, Star
-} from 'lucide-react';
+import type React from "react"
+import { useState, useEffect } from "react"
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
+import {
+  Sun,
+  Moon,
+  Cloud,
+  CloudRain,
+  Wind,
+  Thermometer,
+  Droplets,
+  Search,
+  MapPin,
+  AlertTriangle,
+  Info,
+  Undo,
+  Star,
+} from "lucide-react"
+
+// Type definitions
+interface WeatherData {
+  name: string
+  main: {
+    temp: number
+    feels_like: number
+    temp_max: number
+    temp_min: number
+    humidity: number
+  }
+  wind: {
+    speed: number
+  }
+  weather: Array<{
+    main: string
+  }>
+  rain?: {
+    "1h": number
+  }
+  snow?: {
+    "1h": number
+  }
+}
+
+interface ForecastData {
+  dt: number
+  main: {
+    temp: number
+  }
+}
+
+interface ChartData {
+  date: string
+  temp: number
+}
 
 export default function Home() {
   // State management
-  const [location, setLocation] = useState('');
-  const [weather, setWeather] = useState(null);
-  const [forecast, setForecast] = useState([]);
-  const [units, setUnits] = useState('metric');
-  const [theme, setTheme] = useState('light');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [recentLocations, setRecentLocations] = useState([]);
-  const [favorites, setFavorites] = useState([]);
-  const [showFeatureInfo, setShowFeatureInfo] = useState(true);
-  const [lastAction, setLastAction] = useState(null);
-  const [showDetails, setShowDetails] = useState(false);
+  const [location, setLocation] = useState("")
+  const [weather, setWeather] = useState<WeatherData | null>(null)
+  const [forecast, setForecast] = useState<ForecastData[]>([])
+  const [units, setUnits] = useState("metric")
+  const [theme, setTheme] = useState("light")
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [recentLocations, setRecentLocations] = useState<string[]>([])
+  const [favorites, setFavorites] = useState<string[]>([])
+  const [showFeatureInfo, setShowFeatureInfo] = useState(true)
+  const [lastAction, setLastAction] = useState<{ type: string; value: string } | null>(null)
+  const [showDetails, setShowDetails] = useState(false)
 
   // API configuration
-  const API_KEY = process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY;
-  const API_BASE = 'https://api.openweathermap.org/data/2.5';
+  const API_KEY = process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY
+  const API_BASE = "https://api.openweathermap.org/data/2.5"
 
   // Theme handling
   useEffect(() => {
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
+    if (theme === "dark") {
+      document.documentElement.classList.add("dark")
     } else {
-      document.documentElement.classList.remove('dark');
+      document.documentElement.classList.remove("dark")
     }
-  }, [theme]);
+  }, [theme])
 
   // Load saved preferences from localStorage
   useEffect(() => {
     try {
-      const savedUnits = localStorage.getItem('weatherUnits');
-      const savedTheme = localStorage.getItem('weatherTheme');
-      const savedFavorites = JSON.parse(localStorage.getItem('weatherFavorites') || '[]');
-      const savedLocations = JSON.parse(localStorage.getItem('recentLocations') || '[]');
-      const hasSeenFeatureInfo = localStorage.getItem('hasSeenFeatureInfo');
+      const savedUnits = localStorage.getItem("weatherUnits")
+      const savedTheme = localStorage.getItem("weatherTheme")
+      const savedFavorites = JSON.parse(localStorage.getItem("weatherFavorites") || "[]")
+      const savedLocations = JSON.parse(localStorage.getItem("recentLocations") || "[]")
+      const hasSeenFeatureInfo = localStorage.getItem("hasSeenFeatureInfo")
 
-      if (savedUnits) setUnits(savedUnits);
-      if (savedTheme) setTheme(savedTheme);
-      if (savedFavorites) setFavorites(savedFavorites);
-      if (savedLocations) setRecentLocations(savedLocations);
-      if (hasSeenFeatureInfo) setShowFeatureInfo(false);
+      if (savedUnits) setUnits(savedUnits)
+      if (savedTheme) setTheme(savedTheme)
+      if (savedFavorites) setFavorites(savedFavorites)
+      if (savedLocations) setRecentLocations(savedLocations)
+      if (hasSeenFeatureInfo) setShowFeatureInfo(false)
     } catch (err) {
-      console.error('Error loading from localStorage:', err);
+      console.error("Error loading from localStorage:", err)
     }
-  }, []);
+  }, [])
 
   // Save preferences to localStorage
   useEffect(() => {
     try {
-      localStorage.setItem('weatherUnits', units);
-      localStorage.setItem('weatherTheme', theme);
-      localStorage.setItem('weatherFavorites', JSON.stringify(favorites));
-      localStorage.setItem('recentLocations', JSON.stringify(recentLocations));
+      localStorage.setItem("weatherUnits", units)
+      localStorage.setItem("weatherTheme", theme)
+      localStorage.setItem("weatherFavorites", JSON.stringify(favorites))
+      localStorage.setItem("recentLocations", JSON.stringify(recentLocations))
     } catch (err) {
-      console.error('Error saving to localStorage:', err);
+      console.error("Error saving to localStorage:", err)
     }
-  }, [units, theme, favorites, recentLocations]);
+  }, [units, theme, favorites, recentLocations])
 
-  const Alert = ({ children, variant = "default", className = "" }) => {
-    const baseStyles = "p-4 rounded-lg flex items-start gap-2";
+  const Alert: React.FC<{
+    children: React.ReactNode
+    variant?: "default" | "destructive"
+    className?: string
+  }> = ({ children, variant = "default", className = "" }) => {
+    const baseStyles = "p-4 rounded-lg flex items-start gap-2"
     const variantStyles = {
       default: "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300",
-      destructive: "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300"
-    };
-  
-    return (
-      <div className={`${baseStyles} ${variantStyles[variant]} ${className}`}>
-        {children}
-      </div>
-    );
-  };
-  
-  const AlertDescription = ({ children, className = "" }) => {
-    return (
-      <div className={`text-sm flex-1 ${className}`}>
-        {children}
-      </div>
-    );
-  };
-
-  const fetchWeather = async (searchLocation) => {
-    if (!API_KEY) {
-      setError('Weather data is temporarily unavailable. Please check back later.');
-      return;
+      destructive: "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300",
     }
 
-    setLoading(true);
-    setError(null);
-    
+    return <div className={`${baseStyles} ${variantStyles[variant]} ${className}`}>{children}</div>
+  }
+
+  const AlertDescription: React.FC<{
+    children: React.ReactNode
+    className?: string
+  }> = ({ children, className = "" }) => {
+    return <div className={`text-sm flex-1 ${className}`}>{children}</div>
+  }
+
+  const fetchWeather = async (searchLocation: string) => {
+    if (!API_KEY) {
+      setError("Weather data is temporarily unavailable. Please check back later.")
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+
     try {
-      const weatherResponse = await fetch(
-        `${API_BASE}/weather?q=${searchLocation}&units=${units}&appid=${API_KEY}`
-      );
-      
+      const weatherResponse = await fetch(`${API_BASE}/weather?q=${searchLocation}&units=${units}&appid=${API_KEY}`)
+
       if (!weatherResponse.ok) {
-        throw new Error('Location not found. Please check the spelling and try again.');
+        throw new Error("Location not found. Please check the spelling and try again.")
       }
-      
-      const weatherData = await weatherResponse.json();
-      
-      const forecastResponse = await fetch(
-        `${API_BASE}/forecast?q=${searchLocation}&units=${units}&appid=${API_KEY}`
-      );
-      
+
+      const weatherData: WeatherData = await weatherResponse.json()
+
+      const forecastResponse = await fetch(`${API_BASE}/forecast?q=${searchLocation}&units=${units}&appid=${API_KEY}`)
+
       if (!forecastResponse.ok) {
-        throw new Error('Forecast data unavailable');
+        throw new Error("Forecast data unavailable")
       }
-      
-      const forecastData = await forecastResponse.json();
-      
-      setWeather(weatherData);
-      setForecast(forecastData.list);
-      
+
+      const forecastData = await forecastResponse.json()
+
+      setWeather(weatherData)
+      setForecast(forecastData.list)
+
       // Update recent locations
       if (!recentLocations.includes(searchLocation)) {
-        const updatedLocations = [searchLocation, ...recentLocations].slice(0, 5);
-        setRecentLocations(updatedLocations);
+        const updatedLocations = [searchLocation, ...recentLocations].slice(0, 5)
+        setRecentLocations(updatedLocations)
       }
-      
     } catch (err) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : "An unknown error occurred")
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
-  const handleSearch = (e) => {
-    e.preventDefault();
+  const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
     if (location.trim()) {
-      fetchWeather(location);
+      fetchWeather(location)
     }
-  };
+  }
 
-  const toggleFavorite = (loc) => {
+  const toggleFavorite = (loc: string) => {
     try {
       if (favorites.includes(loc)) {
-        setFavorites(favorites.filter(f => f !== loc));
+        setFavorites(favorites.filter((f) => f !== loc))
       } else {
-        setFavorites([...favorites, loc]);
+        setFavorites([...favorites, loc])
       }
     } catch (err) {
-      console.error('Error updating favorites:', err);
+      console.error("Error updating favorites:", err)
     }
-  };
+  }
 
   const toggleUnits = () => {
-    const oldUnit = units;
-    setUnits(units === 'metric' ? 'imperial' : 'metric');
-    setLastAction({ type: 'units', value: oldUnit });
-  };
+    const oldUnit = units
+    setUnits(units === "metric" ? "imperial" : "metric")
+    setLastAction({ type: "units", value: oldUnit })
+  }
 
   const undoLastAction = () => {
-    if (lastAction?.type === 'units') {
-      setUnits(lastAction.value);
-      setLastAction(null);
+    if (lastAction?.type === "units") {
+      setUnits(lastAction.value)
+      setLastAction(null)
     }
-  };
+  }
 
-  const formatTemp = (temp) => {
-    return `${Math.round(temp)}°${units === 'metric' ? 'C' : 'F'}`;
-  };
+  const formatTemp = (temp: number): string => {
+    return `${Math.round(temp)}°${units === "metric" ? "C" : "F"}`
+  }
 
   const renderForecastChart = () => {
-    if (!forecast.length) return null;
+    if (!forecast.length) return null
 
-    const chartData = forecast
+    const chartData: ChartData[] = forecast
       .filter((_, index) => index % 8 === 0)
-      .map(item => ({
+      .map((item) => ({
         date: new Date(item.dt * 1000).toLocaleDateString(),
-        temp: item.main.temp
-      }));
+        temp: item.main.temp,
+      }))
 
     return (
       <div className="h-64 mt-6">
@@ -190,35 +228,30 @@ export default function Home() {
           <LineChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="date" />
-            <YAxis 
-              label={{ 
-                value: `Temperature (°${units === 'metric' ? 'C' : 'F'})`,
+            <YAxis
+              label={{
+                value: `Temperature (°${units === "metric" ? "C" : "F"})`,
                 angle: -90,
-                position: 'insideLeft'
-              }} 
+                position: "insideLeft",
+              }}
             />
             <Tooltip />
             <Legend />
-            <Line
-              type="monotone"
-              dataKey="temp"
-              stroke="#8884d8"
-              name="Temperature"
-            />
+            <Line type="monotone" dataKey="temp" stroke="#8884d8" name="Temperature" />
           </LineChart>
         </ResponsiveContainer>
       </div>
-    );
-  };
+    )
+  }
 
   const dismissFeatureInfo = () => {
-    setShowFeatureInfo(false);
+    setShowFeatureInfo(false)
     try {
-      localStorage.setItem('hasSeenFeatureInfo', 'true');
+      localStorage.setItem("hasSeenFeatureInfo", "true")
     } catch (err) {
-      console.error('Error saving feature info state:', err);
+      console.error("Error saving feature info state:", err)
     }
-  };
+  }
 
   return (
     <main className="min-h-screen bg-white dark:bg-gray-900">
@@ -228,15 +261,9 @@ export default function Home() {
           <Alert className="mb-4">
             <Info className="h-4 w-4" />
             <AlertDescription>
-              Welcome! This dashboard helps you:
-              • Track current weather and forecasts
-              • Save favorite locations for quick access
-              • View detailed weather metrics
-              • Customize your experience with °C/°F and dark mode
-              <button 
-                onClick={dismissFeatureInfo}
-                className="ml-2 text-sm text-blue-500 hover:underline"
-              >
+              Welcome! This dashboard helps you: • Track current weather and forecasts • Save favorite locations for
+              quick access • View detailed weather metrics • Customize your experience with °C/°F and dark mode
+              <button onClick={dismissFeatureInfo} className="ml-2 text-sm text-blue-500 hover:underline">
                 Got it
               </button>
             </AlertDescription>
@@ -248,15 +275,16 @@ export default function Home() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Weather Dashboard</h1>
           <div className="flex gap-4">
             <button
-              onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+              onClick={() => setTheme(theme === "light" ? "dark" : "light")}
               className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
               aria-label="Toggle theme"
               title="Switch between light and dark mode for better visibility"
             >
-              {theme === 'light' ? 
-                <Moon className="w-5 h-5 text-gray-800 dark:text-white" /> : 
+              {theme === "light" ? (
+                <Moon className="w-5 h-5 text-gray-800 dark:text-white" />
+              ) : (
                 <Sun className="w-5 h-5 text-gray-800 dark:text-white" />
-              }
+              )}
             </button>
             <div className="flex items-center gap-2">
               <button
@@ -264,7 +292,7 @@ export default function Home() {
                 className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-800 dark:text-white"
                 title="Switch between Celsius and Fahrenheit"
               >
-                {units === 'metric' ? '°C' : '°F'}
+                {units === "metric" ? "°C" : "°F"}
               </button>
               {lastAction && (
                 <button
@@ -298,7 +326,7 @@ export default function Home() {
               className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:ring-2 disabled:opacity-50"
               disabled={loading}
             >
-              {loading ? 'Searching...' : 'Search'}
+              {loading ? "Searching..." : "Search"}
             </button>
           </div>
         </form>
@@ -308,7 +336,7 @@ export default function Home() {
           <div className="mb-6">
             <h2 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">Recent Searches</h2>
             <div className="flex flex-wrap gap-2">
-              {recentLocations.map(loc => (
+              {recentLocations.map((loc) => (
                 <button
                   key={loc}
                   onClick={() => fetchWeather(loc)}
@@ -345,15 +373,15 @@ export default function Home() {
                       className="text-yellow-500"
                       title={favorites.includes(weather.name) ? "Remove from favorites" : "Add to favorites"}
                     >
-                      {favorites.includes(weather.name) ? '★' : '☆'}
+                      {favorites.includes(weather.name) ? "★" : "☆"}
                     </button>
                   </h2>
                   <p className="text-gray-500 dark:text-gray-400">
-                    {new Date().toLocaleDateString(undefined, { 
-                      weekday: 'long',
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric'
+                    {new Date().toLocaleDateString(undefined, {
+                      weekday: "long",
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
                     })}
                   </p>
                 </div>
@@ -369,11 +397,11 @@ export default function Home() {
 
               {/* Detailed info in collapsible section */}
               <details className="mt-4" open={showDetails}>
-                <summary 
+                <summary
                   onClick={() => setShowDetails(!showDetails)}
                   className="cursor-pointer text-blue-500 hover:underline"
                 >
-                  {showDetails ? 'Hide' : 'Show'} detailed weather information
+                  {showDetails ? "Hide" : "Show"} detailed weather information
                 </summary>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
                   <div className="flex items-center gap-2">
@@ -391,7 +419,7 @@ export default function Home() {
                     <div>
                       <div className="text-sm text-gray-500 dark:text-gray-400">Humidity</div>
                       <div className="text-gray-900 dark:text-white">{weather.main.humidity}%</div>
-                    </div></div>
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -399,7 +427,7 @@ export default function Home() {
                     <div>
                       <div className="text-sm text-gray-500 dark:text-gray-400">Wind</div>
                       <div className="text-gray-900 dark:text-white">
-                        {Math.round(weather.wind.speed)} {units === 'metric' ? 'm/s' : 'mph'}
+                        {Math.round(weather.wind.speed)} {units === "metric" ? "m/s" : "mph"}
                       </div>
                     </div>
                   </div>
@@ -408,9 +436,7 @@ export default function Home() {
                     <Cloud className="w-5 h-5 text-gray-400" />
                     <div>
                       <div className="text-sm text-gray-500 dark:text-gray-400">Weather</div>
-                      <div className="text-gray-900 dark:text-white">
-                        {weather.weather[0].main}
-                      </div>
+                      <div className="text-gray-900 dark:text-white">{weather.weather[0].main}</div>
                     </div>
                   </div>
                 </div>
@@ -421,9 +447,7 @@ export default function Home() {
                 <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                   <div className="flex items-center gap-2">
                     <CloudRain className="w-5 h-5 text-blue-500" />
-                    <span className="text-blue-700 dark:text-blue-300">
-                      Rain in last hour: {weather.rain['1h']} mm
-                    </span>
+                    <span className="text-blue-700 dark:text-blue-300">Rain in last hour: {weather.rain["1h"]} mm</span>
                   </div>
                 </div>
               )}
@@ -432,9 +456,7 @@ export default function Home() {
                 <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                   <div className="flex items-center gap-2">
                     <CloudRain className="w-5 h-5 text-blue-500" />
-                    <span className="text-blue-700 dark:text-blue-300">
-                      Snow in last hour: {weather.snow['1h']} mm
-                    </span>
+                    <span className="text-blue-700 dark:text-blue-300">Snow in last hour: {weather.snow["1h"]} mm</span>
                   </div>
                 </div>
               )}
@@ -453,7 +475,7 @@ export default function Home() {
           <div className="mt-6">
             <h2 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">Favorite Locations</h2>
             <div className="flex flex-wrap gap-2">
-              {favorites.map(loc => (
+              {favorites.map((loc) => (
                 <button
                   key={loc}
                   onClick={() => fetchWeather(loc)}
@@ -470,15 +492,14 @@ export default function Home() {
         {/* Footer with attribution */}
         <footer className="mt-12 text-center text-sm text-gray-500 dark:text-gray-400">
           <p>Weather data provided by OpenWeather API</p>
-          {error && error.includes('API key') && (
+          {error && error.includes("API key") && (
             <p className="mt-1">
-              <span className="text-red-500">
-                Please configure your API key to access weather data
-              </span>
+              <span className="text-red-500">Please configure your API key to access weather data</span>
             </p>
           )}
         </footer>
       </div>
     </main>
-  );
+  )
 }
+
